@@ -19,6 +19,7 @@ type Options = Omit<OpenDialogOptions, "defaultUri" | "filters"> & {
 
 type FullParam = {
   native: boolean;
+  empty?: string;
   output: {
     join: string;
     fsPath: boolean;
@@ -28,7 +29,7 @@ type FullParam = {
 
 type Param = string | RPartial<FullParam>;
 
-export async function pickHandler(args?: Param): Promise<String> {
+export async function pickHandler(args?: Param): Promise<string | undefined> {
   const param = parseArgs(args);
   const uris = param.native
     ? await pickWithNative(getDefaultUri(param), param)
@@ -38,6 +39,7 @@ export async function pickHandler(args?: Param): Promise<String> {
 
 function parseArgs(param?: Param): FullParam {
   const defaultParam: FullParam = {
+    empty: undefined,
     native: false,
     options: {},
     output: {
@@ -140,10 +142,13 @@ function getDefaultUri({ options }: FullParam): Uri | undefined {
   return;
 }
 
-function formatUris(uris: Uri[] | undefined, param: FullParam): string {
+function formatUris(
+  uris: Uri[] | undefined,
+  param: FullParam
+): string | undefined {
   return (
     uris
       ?.map((uri) => (param.output.fsPath ? uri.fsPath : uri.path))
-      .join(param.output.join) ?? ""
+      .join(param.output.join) ?? param.empty
   );
 }
