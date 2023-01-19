@@ -13,45 +13,55 @@ import showOpenDialog = window.showOpenDialog;
 import fs = workspace.fs;
 
 type Options = Omit<OpenDialogOptions, "defaultUri" | "filters"> & {
-  defaultPath?: string;
+  path?: string;
   workspace?: string;
+  native: boolean;
+  canChangeFolder: boolean; // true,
 };
 
 type FullParam = {
-  native: boolean;
-  empty?: string;
+  options: Options;
   output: {
     join: string;
     fsPath: boolean;
+    defaultPath?: string;
+    default?: string;
   };
-  options: Options;
 };
 
 type Param = string | RPartial<FullParam>;
 
 export async function pickHandler(args?: Param): Promise<string | undefined> {
-  const param = parseArgs(args);
-  const uris = param.native
-    ? await pickWithNative(getDefaultUri(param), param)
-    : await pickWithQuick(getDefaultUri(param) ?? Uri.parse(""), param);
-  return formatUris(uris, param);
+  const { options, output } = parseArgs(args);
+
+  const uris = options.native
+    ? await pickWithNative(resolvePath(options.path), options)
+    : await pickWithQuick(resolvePath(options.path) ?? Uri.parse(""), options);
+
+  if (uris != null) {
+    return formatUris(uris, output);
+  }
+  if (output.default != null) {
+    return output.default;
+  }
+  if (output.defaultPath != null) {
+    const defaultUri = resolvePath(output.defaultPath);
+    const formated =
+      defaultUri != null ? formatUris([defaultUri], output) : undefined;
+    return formated ?? output.defaultPath;
+  }
 }
 
 function parseArgs(param?: Param): FullParam {
   const defaultParam: FullParam = {
-    empty: undefined,
-    native: false,
-    options: {},
-    output: {
-      join: ",",
-      fsPath: true,
-    },
+    options: { native: false, canChangeFolder: true },
+    output: { join: ",", fsPath: true },
   };
 
   if (typeof param === "string") {
     return {
       ...defaultParam,
-      options: { ...defaultParam.options, defaultPath: param },
+      options: { ...defaultParam.options, path: param },
     };
   }
 
@@ -65,38 +75,39 @@ function parseArgs(param?: Param): FullParam {
 
 async function pickWithNative(
   dir: Uri | undefined,
-  param: FullParam
+  options: FullParam["options"]
 ): Promise<Uri[] | undefined> {
-  return await showOpenDialog({ ...param.options, defaultUri: dir });
+  return await showOpenDialog({ ...options, defaultUri: dir });
 }
 
 async function pickWithQuick(
   dir: Uri,
-  param: FullParam
+  options: FullParam["options"]
 ): Promise<Uri[] | undefined> {
   const children = await fs.readDirectory(dir);
-  console.log("children:", children);
   type Item = QuickPickItem & { uri: Uri; type: FileType };
   const res = await showQuickPick<Item>(
     [
-      { label: "..", uri: Uri.joinPath(dir, ".."), type: FileType.Directory },
-      ...[...children, [".", FileType.Directory] as [string, FileType]]
-        .filter(
-          ([_, type]) =>
-            (type !== FileType.Directory ||
-              (param.options.canSelectFolders ?? true)) &&
-            (type !== FileType.File || (param.options.canSelectFiles ?? true))
-        )
-        .map(([name, type]) => ({
-          name,
-          type,
-          label: name,
-          uri: Uri.joinPath(dir, name),
-        })),
-    ],
+      ["..", FileType.Directory] as [string, FileType],
+      [".", FileType.Directory] as [string, FileType],
+      ...children,
+    ]
+      .filter(
+        ([_, type]) =>
+          (type !== FileType.Directory ||
+            (options.canSelectFolders ?? true) ||
+            options.canChangeFolder) &&
+          (type !== FileType.File || (options.canSelectFiles ?? true))
+      )
+      .map(([name, type]) => ({
+        name,
+        type,
+        label: type === FileType.Directory ? `${name}/` : name,
+        uri: Uri.joinPath(dir, name),
+      })),
     {
-      title: param.options.title,
-      canPickMany: param.options.canSelectMany,
+      title: options.title,
+      canPickMany: options.canSelectMany,
     }
   );
   if (res == null) {
@@ -106,37 +117,38 @@ async function pickWithQuick(
   if (
     items.length === 1 &&
     items[0].type === FileType.Directory &&
+    options.canChangeFolder &&
     items[0].uri.path !== Uri.joinPath(dir, ".").path
   ) {
-    return pickWithQuick(items[0].uri, param);
+    return pickWithQuick(items[0].uri, options);
   }
   return items.map((i) => i.uri);
 }
 
-function getDefaultUri({ options }: FullParam): Uri | undefined {
+function resolvePath(path: string | undefined): Uri | undefined {
   const workspaceFolders = workspace.workspaceFolders;
 
-  if (options.defaultPath == null) {
+  if (path == null) {
     if ((workspaceFolders?.length ?? 0) >= 1) {
       return workspaceFolders![0].uri;
     }
     return;
   }
 
-  if (options.defaultPath.startsWith("/")) {
-    return Uri.parse(options.defaultPath);
+  if (path.startsWith("/")) {
+    return Uri.parse(path);
   }
 
   if (workspaceFolders?.length === 1) {
-    return Uri.joinPath(workspaceFolders[0].uri, options.defaultPath);
+    return Uri.joinPath(workspaceFolders[0].uri, path);
   }
 
-  const defaultPath = Uri.parse(options.defaultPath).path;
+  const defaultPath = Uri.parse(path).path;
   const workspaceFolder = workspaceFolders?.find((f) =>
     defaultPath.startsWith(basename(f.uri.path) + "/")
   );
   if (workspaceFolder != null) {
-    return Uri.joinPath(workspaceFolder.uri, options.defaultPath);
+    return Uri.joinPath(workspaceFolder.uri, path);
   }
 
   return;
@@ -144,11 +156,9 @@ function getDefaultUri({ options }: FullParam): Uri | undefined {
 
 function formatUris(
   uris: Uri[] | undefined,
-  param: FullParam
+  output: FullParam["output"]
 ): string | undefined {
-  return (
-    uris
-      ?.map((uri) => (param.output.fsPath ? uri.fsPath : uri.path))
-      .join(param.output.join) ?? param.empty
-  );
+  return uris
+    ?.map((uri) => (output.fsPath ? uri.fsPath : uri.path))
+    .join(output.join);
 }

@@ -2,7 +2,7 @@
   "name": "launch-file-picker",
   "displayName": "Launch File Picker",
   "description": "for launch.json and tasks.json",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "hw104",
   "license": "MIT",
   "repository": {

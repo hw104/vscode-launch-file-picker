@@ -32,18 +32,20 @@ The file (or directory) path picker for `launch.json` and `tasks.json`.
 or
 ```jsonc
 "args": {
-  "native": boolean, // Whether open native file manoger. (Default: false)
-  "empty": string, // Control whether output if nothing is selected. If this value is null, the task will be canceled. (Defaults to null)
   "options": {
-    "defaultPath": string, // The directory the dialog shows when opened. (Defaults to workspace's root)
+    "native": boolean, // Whether open native file manoger. (Default: false)
+    "path": string, // The directory the dialog shows when opened. If a relative path is specified, it will be resolved. (Defaults to workspace's root)
     "canSelectFiles": boolean, // Allow to select files, defaults to `true`. (Defaults to true)
     "canSelectFolders": boolean, // Allow to select folders, defaults to `false`. (Defaults to true)
     "canSelectMany": boolean, // Allow to select many files or folders. (Defaults to false)
+    "canChangeFolder": boolean, // Allow to select files from different folder than `defaultPath`.
     "title": string, // Dialog title. (Defaults to null)
   },
   "output": {
     "join": string, // path separator for `options.canSelectMany` is true. (Defaults to ",")
     "fsPath": boolean, // The string representing the corresponding file system path of this Uri. (e.g. in windown output is `\\server\c$\folder\file.txt`. Defaults to true)
+    "defaultPath": string, // Control whether output path if nothing is selected. If a relative path is specified, it will be resolved. (Defaults to null)
+    "default": string, // Control whether output text if nothing is selected. (Defaults to null)
   },
 }
 ```
@@ -69,7 +71,15 @@ Select env file in launch.json:
       "id": "pickEnvFile",
       "type": "command",
       "command": "launch-file-picker.pick",
-      "args": ".envs",
+      "options": {
+          "title": "pick env file",
+          "defaultPath": "client/env",
+          "canSelectFolders": false,
+          "canChangeFolder": false,
+        },
+        "output": {
+          "defaultPath": "client/env/dev.env",
+        }
     }
   ]
 }
