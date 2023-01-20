@@ -33,13 +33,15 @@ or
 ```jsonc
 "args": {
   "options": {
-    "native": boolean, // Whether open native file manoger. (Default: false)
     "path": string, // The directory the dialog shows when opened. If a relative path is specified, it will be resolved. (Defaults to workspace's root)
     "canSelectFiles": boolean, // Allow to select files, defaults to `true`. (Defaults to true)
-    "canSelectFolders": boolean, // Allow to select folders, defaults to `false`. (Defaults to true)
+    "canSelectFolders": boolean, // Allow to select folders, defaults to `false`. (Defaults to false)
+    "canChangeFolder": boolean, // Allow to select files from different folder than `defaultPath`. (Default to false)
     "canSelectMany": boolean, // Allow to select many files or folders. (Defaults to false)
-    "canChangeFolder": boolean, // Allow to select files from different folder than `defaultPath`.
+    "filterRegExp": string, // Regular expressions that work as filters. (Defaults to null)
+    "filterExt": string, // File extensions that work as filters. (e.g. `.ts`. Default to null)
     "title": string, // Dialog title. (Defaults to null)
+    "native": boolean, // Whether open native file manoger. (Default: false)
   },
   "output": {
     "join": string, // path separator for `options.canSelectMany` is true. (Defaults to ",")
@@ -73,12 +75,11 @@ Select env file in launch.json:
       "command": "launch-file-picker.pick",
       "options": {
           "title": "pick env file",
-          "defaultPath": "client/env",
-          "canSelectFolders": false,
-          "canChangeFolder": false,
+          "path": "client/env",
+          "filterExt": ".env"
         },
         "output": {
-          "defaultPath": "client/env/dev.env",
+          "defaultPath": "client/env/dev.env"
         }
     }
   ]

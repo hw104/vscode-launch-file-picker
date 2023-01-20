@@ -1,12 +1,5 @@
 import { basename } from "path";
-import {
-  FileType,
-  OpenDialogOptions,
-  QuickPickItem,
-  Uri,
-  window,
-  workspace,
-} from "vscode";
+import { FileType, OpenDialogOptions, QuickPickItem, Uri, window, workspace } from "vscode";
 import { RPartial } from "../common";
 import showQuickPick = window.showQuickPick;
 import showOpenDialog = window.showOpenDialog;
@@ -14,9 +7,13 @@ import fs = workspace.fs;
 
 type Options = Omit<OpenDialogOptions, "defaultUri" | "filters"> & {
   path?: string;
-  workspace?: string;
   native: boolean;
-  canChangeFolder: boolean; // true,
+  canSelectFiles: boolean;
+  canSelectFolders: boolean;
+  canChangeFolder: boolean;
+  canSelectMany: boolean;
+  filterRegExp?: string;
+  filterExt?: string;
 };
 
 type FullParam = {
@@ -46,15 +43,20 @@ export async function pickHandler(args?: Param): Promise<string | undefined> {
   }
   if (output.defaultPath != null) {
     const defaultUri = resolvePath(output.defaultPath);
-    const formated =
-      defaultUri != null ? formatUris([defaultUri], output) : undefined;
+    const formated = defaultUri != null ? formatUris([defaultUri], output) : undefined;
     return formated ?? output.defaultPath;
   }
 }
 
 function parseArgs(param?: Param): FullParam {
   const defaultParam: FullParam = {
-    options: { native: false, canChangeFolder: true },
+    options: {
+      native: false,
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canChangeFolder: false,
+      canSelectMany: false,
+    },
     output: { join: ",", fsPath: true },
   };
 
@@ -80,45 +82,45 @@ async function pickWithNative(
   return await showOpenDialog({ ...options, defaultUri: dir });
 }
 
-async function pickWithQuick(
-  dir: Uri,
-  options: FullParam["options"]
-): Promise<Uri[] | undefined> {
+async function pickWithQuick(dir: Uri, options: FullParam["options"]): Promise<Uri[] | undefined> {
+  const {
+    filterExt: ext,
+    filterRegExp: regx,
+    canSelectFiles,
+    canSelectFolders,
+    canChangeFolder,
+    canSelectMany,
+    title,
+  } = options;
+
+  dir = Uri.joinPath(dir, ".");
   const children = await fs.readDirectory(dir);
   type Item = QuickPickItem & { uri: Uri; type: FileType };
+
   const res = await showQuickPick<Item>(
     [
-      ["..", FileType.Directory] as [string, FileType],
-      [".", FileType.Directory] as [string, FileType],
+      ...(canChangeFolder ? [["..", FileType.Directory] as [string, FileType]] : []),
+      ...(canSelectFolders ? [[".", FileType.Directory] as [string, FileType]] : []),
       ...children,
     ]
-      .filter(
-        ([_, type]) =>
-          (type !== FileType.Directory ||
-            (options.canSelectFolders ?? true) ||
-            options.canChangeFolder) &&
-          (type !== FileType.File || (options.canSelectFiles ?? true))
-      )
-      .map(([name, type]) => ({
-        name,
-        type,
-        label: type === FileType.Directory ? `${name}/` : name,
-        uri: Uri.joinPath(dir, name),
-      })),
-    {
-      title: options.title,
-      canPickMany: options.canSelectMany,
-    }
+      .map(([name, type]) => ({ uri: Uri.joinPath(dir, name), name, type }))
+      .filter((e) => e.type === FileType.Directory || regx == null || RegExp(regx).test(e.uri.path))
+      .filter((e) => e.type === FileType.Directory || ext == null || e.uri.path.endsWith(ext))
+      .filter(({ type }) => type !== FileType.Directory || canSelectFolders || canChangeFolder)
+      .filter(({ type }) => type !== FileType.File || canSelectFiles)
+      .map((e) => ({ ...e, label: e.type === FileType.Directory ? `${e.name}/` : e.name })),
+    { title: title, canPickMany: canSelectMany }
   );
+
   if (res == null) {
     return;
   }
   const items = Array.isArray(res) ? (res as Item[]) : [res];
   if (
+    canChangeFolder &&
     items.length === 1 &&
     items[0].type === FileType.Directory &&
-    options.canChangeFolder &&
-    items[0].uri.path !== Uri.joinPath(dir, ".").path
+    items[0].uri.path !== dir.path
   ) {
     return pickWithQuick(items[0].uri, options);
   }
@@ -154,11 +156,6 @@ function resolvePath(path: string | undefined): Uri | undefined {
   return;
 }
 
-function formatUris(
-  uris: Uri[] | undefined,
-  output: FullParam["output"]
-): string | undefined {
-  return uris
-    ?.map((uri) => (output.fsPath ? uri.fsPath : uri.path))
-    .join(output.join);
+function formatUris(uris: Uri[] | undefined, output: FullParam["output"]): string | undefined {
+  return uris?.map((uri) => (output.fsPath ? uri.fsPath : uri.path)).join(output.join);
 }
