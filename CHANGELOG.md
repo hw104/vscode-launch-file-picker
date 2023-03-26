@@ -1,5 +1,9 @@
 # Change Log
 
+## 1.0.0
+
+- `README.md`
+
 ## 0.0.4
 
 - `options.fil`

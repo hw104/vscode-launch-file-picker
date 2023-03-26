@@ -73,7 +73,8 @@ Select env file in launch.json:
       "id": "pickEnvFile",
       "type": "command",
       "command": "launch-file-picker.pick",
-      "options": {
+      "args": {
+        "options": {
           "title": "pick env file",
           "path": "client/env",
           "filterExt": ".env"
@@ -81,6 +82,7 @@ Select env file in launch.json:
         "output": {
           "defaultPath": "client/env/dev.env"
         }
+      }
     }
   ]
 }
